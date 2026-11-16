@@ -1,0 +1,8 @@
+Goose Nest
+Copyright 2026 Goose Nest contributors
+Licensed under the Apache License, Version 2.0.
+
+Vendored Goose libraries retain their original Apache-2.0 licenses.
+Native adapters link to libcurl (curl license), OpenSSL (Apache-2.0),
+and libarchive (BSD-style license); these libraries are not bundled.
+See THIRD_PARTY_NOTICES.md for source identities and attribution.

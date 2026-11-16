@@ -1,0 +1,28 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .toolchain
+          key: goose-${{ runner.os }}-${{ hashFiles('GOOSE_REVISION', 'scripts/setup-goose.sh') }}
+      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libssl-dev libarchive-dev pkg-config
+      - run: make setup
+      - run: make check test native-test
+      - run: python3 tools/registry.py validate
+      - name: Check published metadata is append-only
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --depth=1 origin "$BASE_SHA"
+          mkdir -p .build/base
+          if git cat-file -e "$BASE_SHA:index"; then
+            git archive "$BASE_SHA" index | tar -x -C .build/base
+            python3 tools/registry.py validate --base .build/base/index
+          fi

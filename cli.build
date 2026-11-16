@@ -1,0 +1,1 @@
+exclude = [".git", ".build", ".toolchain", "examples", "tests", "bench", "tools", "docs", "index", "vendor"];
