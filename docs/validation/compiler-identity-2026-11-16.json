@@ -1,0 +1,206 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "compiler_repository": "https://github.com/carabistouflette/goose",
+  "compiler_revision": "0ce3a5edb5679e10a490e9f66d5db5f6a30b9f63",
+  "compiler_pr": "https://github.com/carabistouflette/goose/pull/1",
+  "legacy_baseline": "eadca409f68210893f366e60d0c2f0dc29a339be",
+  "compiler_report": {
+    "schema": 1,
+    "compiler_revision": "0ce3a5edb5679e10a490e9f66d5db5f6a30b9f63",
+    "compiler_version": "0ce3a5ed",
+    "runtime": "3025e5810379",
+    "package_graph": "goose-package-graph-v1",
+    "package_graph_native": false,
+    "package_graph_tooling": false
+  },
+  "platform": "Linux x86_64",
+  "build_type": "Debug",
+  "builtin_libraries": "none",
+  "c_compiler": "clang version 23.1.4",
+  "binaries": [
+    {
+      "name": "normal",
+      "sha256": "436b21aff660323f172fb9b6532d7c0be0673bdf18f4af3bcc190dc6c7fe2415"
+    },
+    {
+      "name": "compiler-asan-ubsan",
+      "sha256": "3e124cb50c51d88d4a81e190439964b081c2688a8aa44b1b4f1ebe27b9f39464"
+    }
+  ],
+  "runs": [
+    {
+      "name": "identity",
+      "command": "python3 test/package_identity.py --exe .build/package-identity/goose --cc clang -v",
+      "exit_code": 0,
+      "log": "compiler-identity-2026-11-16.txt",
+      "log_sha256": "c6a4143dce3a1ccde44e73b22c5cadce686c656d49f86020b7e1d6511c328cb8",
+      "tests": 16
+    },
+    {
+      "name": "identity-asan",
+      "command": "ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 python3 test/package_identity.py --exe .build/package-identity-asan/goose --cc clang -v",
+      "exit_code": 0,
+      "log": "compiler-identity-asan-2026-11-16.txt",
+      "log_sha256": "0f3bd3d06a3c349541b0a36709b14f502cb8730f7e75c1f527e1920fd0206dda",
+      "tests": 16
+    },
+    {
+      "name": "legacy-native",
+      "command": "python3 -u test/run_tests.py --exe .build/package-identity/goose --cc clang -j 4",
+      "exit_code": 0,
+      "log": "compiler-legacy-native-2026-11-16.txt",
+      "log_sha256": "dbcb755f5ede187cce41cc020848335e5735e341becddfee033652a13b67a017",
+      "sections": [
+        {
+          "name": "lexer and shader compiler",
+          "checks": 5
+        },
+        {
+          "name": "parse, roundtrip and typecheck",
+          "checks": 1452
+        },
+        {
+          "name": "optimizer, stack report and C shapes",
+          "checks": 23
+        },
+        {
+          "name": "bounds-check annotations",
+          "checks": 64
+        },
+        {
+          "name": "generated C, built and run at -O0 and -O2",
+          "checks": 694
+        },
+        {
+          "name": "dump-runtime programs",
+          "checks": 8
+        },
+        {
+          "name": "GS_DEBUG programs",
+          "checks": 204
+        },
+        {
+          "name": "compiler roots, runtime lifecycle and clang",
+          "checks": 22
+        },
+        {
+          "name": "driver, diagnostics and language server",
+          "checks": 54
+        },
+        {
+          "name": "native builds, packages and runtime I/O",
+          "checks": 14
+        },
+        {
+          "name": "goose_in_goose bootstrap",
+          "checks": 21
+        },
+        {
+          "name": "JIT (TinyCC) runs",
+          "checks": 860
+        },
+        {
+          "name": "parse errors (errors/)",
+          "checks": 75
+        },
+        {
+          "name": "typecheck errors (errors_tc/ and native modules' rejection tests)",
+          "checks": 1911
+        },
+        {
+          "name": "recovery (errors_tc/recovery/)",
+          "checks": 16
+        },
+        {
+          "name": "long call chains and guard runs",
+          "checks": 6
+        },
+        {
+          "name": "language reference examples (docs/reference.md)",
+          "checks": 1
+        },
+        {
+          "name": "samples",
+          "checks": 52
+        }
+      ]
+    },
+    {
+      "name": "legacy-nocgen",
+      "command": "python3 -u test/run_tests.py --exe .build/package-identity/goose --nocgen -j 2",
+      "exit_code": 0,
+      "log": "compiler-legacy-nocgen-2026-11-16.txt",
+      "log_sha256": "99a0221042aeb93904a70486fc537e933a8842e542ab9a212e8b37f7223ebc6e",
+      "sections": [
+        {
+          "name": "lexer and shader compiler",
+          "checks": 5
+        },
+        {
+          "name": "parse, roundtrip and typecheck",
+          "checks": 1452
+        },
+        {
+          "name": "optimizer, stack report and C shapes",
+          "checks": 23
+        },
+        {
+          "name": "bounds-check annotations",
+          "checks": 64
+        },
+        {
+          "name": "generated C, built and run at -O0 and -O2",
+          "checks": 0
+        },
+        {
+          "name": "driver, diagnostics and language server",
+          "checks": 52
+        },
+        {
+          "name": "native builds, packages and runtime I/O",
+          "checks": 4
+        },
+        {
+          "name": "goose_in_goose bootstrap",
+          "checks": 4
+        },
+        {
+          "name": "JIT (TinyCC) runs",
+          "checks": 860
+        },
+        {
+          "name": "parse errors (errors/)",
+          "checks": 75
+        },
+        {
+          "name": "typecheck errors (errors_tc/ and native modules' rejection tests)",
+          "checks": 1911
+        },
+        {
+          "name": "recovery (errors_tc/recovery/)",
+          "checks": 16
+        },
+        {
+          "name": "long call chains and guard runs",
+          "checks": 3
+        },
+        {
+          "name": "language reference examples (docs/reference.md)",
+          "checks": 1
+        },
+        {
+          "name": "samples",
+          "checks": 52
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "No graph-aware LSP/dumps, non-toolchain native packages or sourced imports.",
+    "Source provenance and snapshot hashes are trusted producer assertions.",
+    "Honk graph emission and multi-version resolution remain unfinished; consumer compiler pins unchanged.",
+    "No cross-platform or blessed-native-layer qualification in these local runs.",
+    "No compiler performance comparison or stable generated C ABI claim."
+  ]
+}

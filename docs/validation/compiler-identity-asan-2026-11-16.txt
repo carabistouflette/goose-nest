@@ -1,0 +1,21 @@
+test_ambiguous_alias_and_legacy_sourced_import_are_rejected (__main__.PackageIdentity.test_ambiguous_alias_and_legacy_sourced_import_are_rejected) ... ok
+test_debug_native_build (__main__.PackageIdentity.test_debug_native_build) ... ok
+test_explicit_dependency_namespace_and_unnamespaced_dependency (__main__.PackageIdentity.test_explicit_dependency_namespace_and_unnamespaced_dependency) ... ok
+test_invalid_graphs_fail_before_native_build (__main__.PackageIdentity.test_invalid_graphs_fail_before_native_build) ... ok
+test_legacy_namespaces_and_package_programs (__main__.PackageIdentity.test_legacy_namespaces_and_package_programs) ... ok
+test_local_module_symlink_cannot_escape_package (__main__.PackageIdentity.test_local_module_symlink_cannot_escape_package) ... ok
+test_lsp_rejects_graph_configuration (__main__.PackageIdentity.test_lsp_rejects_graph_configuration) ... ok
+test_native_and_lossy_tooling_are_rejected (__main__.PackageIdentity.test_native_and_lossy_tooling_are_rejected) ... ok
+test_owned_global_scope_initialization_and_methods (__main__.PackageIdentity.test_owned_global_scope_initialization_and_methods) ... ok
+test_package_globals_do_not_leak_from_application (__main__.PackageIdentity.test_package_globals_do_not_leak_from_application) ... ok
+test_qualified_global_is_package_local (__main__.PackageIdentity.test_qualified_global_is_package_local) ... ok
+test_same_source_instantiated_with_different_bindings_and_generic_defaults (__main__.PackageIdentity.test_same_source_instantiated_with_different_bindings_and_generic_defaults) ... ok
+test_stable_full_fingerprints_match_independent_sha256 (__main__.PackageIdentity.test_stable_full_fingerprints_match_independent_sha256) ... ok
+test_two_aliases_of_one_instance_share_globals (__main__.PackageIdentity.test_two_aliases_of_one_instance_share_globals) ... ok
+test_two_versions_check_jit_and_aot (__main__.PackageIdentity.test_two_versions_check_jit_and_aot) ... ok
+test_wrong_version_nominal_types_are_rejected (__main__.PackageIdentity.test_wrong_version_nominal_types_are_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 12.332s
+
+OK

@@ -6,7 +6,7 @@ with [Honk](https://github.com/carabistouflette/honk). Experimental
 
 [Browse packages](https://carabistouflette.github.io/goose-nest/) ·
 [Protocol and limits](docs/PROTOCOL.md) · [Performance](bench/README.md) ·
-[Cargo parity plan](docs/CARGO-PARITY.md)
+[Cargo parity plan](docs/CARGO-PARITY.md) · [Registry direction](docs/REGISTRY-DIRECTION.md)
 
 Nest serves a static index and verified source archives. The client is native
 Goose, with a small C adapter for HTTP, SHA-256, archive extraction and local
@@ -14,6 +14,9 @@ cache operations. Python is used for registry authoring and test tooling only;
 Honk does not start Python, Git, or a shell to fetch registry dependencies.
 Nest follows Goose's flat, root-owned package model and `.build` sidecars; it adds
 optional registry policy in Honk without changing the compiler's import syntax.
+Git/path dependencies remain usable without Nest. The next registry protocol
+should use author-scoped identities; the alpha's flat package names are not
+the final naming model. See the registry direction for the migration boundary.
 
 ## Use with Honk
 

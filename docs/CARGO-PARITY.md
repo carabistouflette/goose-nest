@@ -24,6 +24,17 @@ The later Honk implementation at [`5f2963c`](https://github.com/carabistouflette
 
 ## Architectural limit: Cargo-like workflow within Goose's model
 
+**Compiler implementation update:** the fork's opt-in pure-Goose graph slice at
+[`0ce3a5ed`](https://github.com/carabistouflette/goose/commit/0ce3a5edb5679e10a490e9f66d5db5f6a30b9f63)
+can compile incompatible versions together with separate nominal types and
+globals. Sixteen targeted tests pass normally and with the compiler under
+ASan/UBSan; the legacy suite passes with native Clang code generation and JIT.
+[Validation receipt](COMPILER-VALIDATION.md). This does not yet enable multi-version solving in Honk/Nest. Native
+providers, source-import migration, graph-aware tooling and producer integration
+remain prerequisites for general use. Honk/Nest retain their current compiler
+pin. [Design and implementation boundary](COMPILER-PACKAGE-IDENTITY.md),
+[registry direction](REGISTRY-DIRECTION.md).
+
 Goose defines a **root-owned, flat package graph, one version of each package per program**, because compilation and namespaces are global. Library sourced imports express requirements; the root owns declarations. Native `.build` sidecars and CMake integration belong to the compiler package mechanism. [Goose package design](https://aardappel.github.io/goose/docs/design/packages.html#43-root-only-and-flat), [Goose package usage](https://aardappel.github.io/goose/docs/packages.html).
 
 Honk can discover transitives automatically and emit the complete compiler root mapping without making the user repeat them. That is compatible with root ownership. Supporting **multiple incompatible versions in one executable is not a package-manager-only change**: it requires compiler work on package identity, namespaces and potentially native linkage. Choosing another resolver or inventing aliases is not evidence that this constraint disappeared. Nest currently selects one version per registry/package, and Honk additionally has global import aliases. [Nest protocol](PROTOCOL.md), [Honk graph implementation](https://github.com/carabistouflette/honk/blob/d9577d2167bbf456102970fc0d854e7077beca03/src/deps.goose), [Goose design decisions](https://aardappel.github.io/goose/docs/design/packages.html#1-decisions).
