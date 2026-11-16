@@ -5,7 +5,8 @@ with [Honk](https://github.com/carabistouflette/honk). Experimental
 **v0.1.0-alpha.1**, Apache-2.0. Project code, documentation and diagnostics are English.
 
 [Browse packages](https://carabistouflette.github.io/goose-nest/) ·
-[Protocol and limits](docs/PROTOCOL.md) · [Performance](bench/README.md)
+[Protocol and limits](docs/PROTOCOL.md) · [Performance](bench/README.md) ·
+[Cargo parity plan](docs/CARGO-PARITY.md)
 
 Nest serves a static index and verified source archives. The client is native
 Goose, with a small C adapter for HTTP, SHA-256, archive extraction and local
@@ -52,9 +53,9 @@ fetches need no index access; `--frozen` also forbids all network. An online
 can select another compatible index for add/search/info.
 
 Import aliases are currently global to the Honk graph. One version per package
-is selected; aliases for different packages must not conflict. Declare registry
-roots in the application manifest: registry dependencies discovered only inside
-Git/path packages must also be declared at the root in this alpha. Published
+is selected; aliases for different packages must not conflict. The development Honk branch discovers registry dependencies inside Git/path
+packages without repeating them at the application root. It aggregates their
+constraints before selecting or downloading registry packages. Published
 registry packages use only same-registry dependencies in Honk.toml, not sourced
 imports. Packages pinning another Goose compiler revision fail explicitly.
 

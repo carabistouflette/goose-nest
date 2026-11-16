@@ -35,7 +35,7 @@ def summary(values):
 
 def run(args):
     nest, honk = args.nest.resolve(), args.honk.resolve()
-    cargo = shutil.which('cargo')
+    cargo = None if args.skip_cargo else str(args.cargo.resolve()) if args.cargo else shutil.which('cargo')
     with tempfile.TemporaryDirectory(prefix='nest-bench-') as temporary:
         root = Path(temporary)
         registry = Registry(root)
@@ -57,6 +57,8 @@ def run(args):
             cold_requests = len(registry.requests) - cold_requests
             expected_requests = len(registry.requests)
             commands = {'honk': ([str(honk), 'fetch', '--frozen'], environment, project)}
+            if args.baseline_honk:
+                commands['baseline_honk'] = ([str(args.baseline_honk.resolve()), 'fetch', '--frozen'], environment, project)
             if cargo:
                 # Build an actual Cargo sparse registry, not path dependencies.
                 index = root / 'cargo-index'
@@ -108,7 +110,8 @@ def run(args):
                       'packages': args.packages + 1, 'platform': platform.platform(), 'python': platform.python_version(),
                       'cargo': subprocess.check_output([cargo, '--version'], text=True).strip() if cargo else None,
                       'nest_version': subprocess.check_output([str(nest), 'version'], text=True).strip(),
-                      'honk_sha256': hashlib.sha256(honk.read_bytes()).hexdigest(), 'nest_sha256': hashlib.sha256(nest.read_bytes()).hexdigest(),
+                      'honk_sha256': hashlib.sha256(honk.read_bytes()).hexdigest(),
+                      'baseline_honk_sha256': hashlib.sha256(args.baseline_honk.read_bytes()).hexdigest() if args.baseline_honk else None, 'nest_sha256': hashlib.sha256(nest.read_bytes()).hexdigest(),
                       'cold_honk_ms': cold_honk, 'cold_cargo_ms': cold_cargo, 'cold_honk_http_requests': cold_requests,
                       'warm_http_requests': len(registry.requests) - expected_requests, 'results': {key: summary(samples) for key, samples in values.items()},
                       'limitations': ['Single Linux host, synthetic small source packages, no compilation.', 'Both use real registry archives. Cargo and Honk use different languages and manifest formats.', 'Honk hashes all extracted source files on cache hits; Cargo uses its own cache policy.', 'Cold timings include loopback HTTP and are not Internet latency measurements.', 'No claim about general Cargo build or resolver performance.']}
@@ -122,6 +125,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--nest', type=Path, default=Path('.build/nest'))
     parser.add_argument('--honk', type=Path, default=Path('../honk/.build/honk'))
+    parser.add_argument('--cargo', type=Path, help='explicit pinned Cargo executable; use a stable toolchain for parity claims')
+    parser.add_argument('--skip-cargo', action='store_true', help='measure only Honk binaries (no Cargo comparison)')
+    parser.add_argument('--baseline-honk', type=Path, help='optional previous Honk binary for paired warm regression samples')
     parser.add_argument('--samples', type=int, default=31)
     parser.add_argument('--packages', type=int, default=24)
     parser.add_argument('--output', type=Path, default=Path('bench/results.json'))

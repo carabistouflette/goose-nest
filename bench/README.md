@@ -38,3 +38,21 @@ and 80.59 ms. Counted warm HTTP requests: **0**.
 
 [Raw samples and binary identities](results.json) are the evidence. This is a
 package-fetch result, not a compilation benchmark or a general Cargo comparison.
+
+## Before/after regression measurements
+
+To protect an existing workflow while adding features, include a previous Honk
+binary in the same alternating sample run. Both binaries use the same verified,
+warm registry cache and lockfile; raw results include both executable hashes.
+
+```sh
+python3 bench/run.py --nest .build/nest --honk /path/to/new/honk \
+  --baseline-honk /path/to/old/honk --skip-cargo \
+  --samples 31 --packages 24 --output /tmp/honk-regression.json
+```
+
+This invocation makes no Cargo comparison. For a new Cargo comparison, pass
+`--cargo /absolute/path/to/a/pinned/stable/cargo` and retain the reported version.
+The historical alpha measurement used nightly Cargo; it is not evidence of a
+win against stable Cargo. Do not overwrite the historical results with a new
+source identity or broaden their scope.
