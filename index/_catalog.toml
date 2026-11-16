@@ -1,0 +1,5 @@
+schema = 1
+
+[[packages]]
+name = "goose-semver"
+version = "0.1.1"

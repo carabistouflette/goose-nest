@@ -1,0 +1,10 @@
+schema = 1
+package = "goose-semver"
+
+[[releases]]
+version = "0.1.1"
+url = "https://github.com/carabistouflette/goose-nest/releases/download/v0.1.0-alpha.1/goose-semver-0.1.1.tar.gz"
+sha256 = "1d5d9b36b4efb6140c611ec399bfb091d200263d0b1cbf093d38c2b3cf0cd7fd"
+entry = "semver.goose"
+yanked = false
+dependencies = []
