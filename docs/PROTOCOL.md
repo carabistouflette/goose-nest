@@ -96,3 +96,45 @@ The alpha registry manifest convention is additional to the compiler's Git/path
 requirements. Existing compiler-native packages continue to work via Honk's
 Git/path support. Importing a registry archive directly with bare `goose` does
 not cause registry discovery; use Honk to generate the complete root mapping.
+
+## Experimental feature metadata
+
+The offline authoring tools can prepare a separate schema-2 index. This is the
+authoring contract for feature-aware releases. Nest and Honk's registry
+resolvers currently read schema 1. Keep schema-2 entries in a staging index
+until those consumers support the new format. The default validator and site
+generation continue to require schema 1.
+
+```sh
+python3 tools/registry.py add example-1.0.0.tar.gz --schema 2 \
+    --index .build/index-v2 --url https://example.org/example-1.0.0.tar.gz
+python3 tools/registry.py validate --schema 2 --index .build/index-v2
+```
+
+A package file declares `schema = 2`. It retains the schema-1 release
+fields and can add a `features` table to each release. Each dependency
+can include `optional = true` and a `features` array of target feature
+names. Omitted fields mean a required dependency and no named feature
+requests. The search catalog keeps its existing schema because it contains
+names and versions only.
+
+```toml
+features = { default = ["text"], text = ["dep:codec"] }
+dependencies = [
+  { alias = "codec", package = "goose-codec", version = "^1.0.0", optional = true, features = ["pretty"] }
+]
+```
+
+The authoring tool derives this metadata from the archived `Honk.toml`.
+Group names start with a lowercase ASCII letter and may contain lowercase
+letters, digits, hyphens, and underscores, up to 64 bytes. A group can
+name a local group or activate a declared optional dependency with
+`dep:<alias>`. Limits match Honk's 256 groups, items per group, dependency
+requests per edge, and production dependencies. Cross-package requests
+are checked for valid names at authoring time. The resolver must check
+whether the selected target release defines those names.
+
+Feature names and members are emitted in sorted order with duplicates
+removed from arrays. Feature metadata is immutable once an entry is
+published. The existing yank field remains the mutable field. An index
+cannot mix package-file schema versions or change schema in place.

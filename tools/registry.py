@@ -14,6 +14,7 @@ import tarfile
 import tomllib
 from urllib.parse import urlsplit
 
+FEATURE = re.compile(r'[a-z][a-z0-9_-]{0,63}\Z')
 NAME = re.compile(r'[a-z][a-z0-9-]{0,63}(?<!-)\Z')
 VERSION = re.compile(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?\Z')
 CAP = 1024 * 1024
@@ -44,14 +45,70 @@ def secure_url(value):
     parsed = urlsplit(value)
     return parsed.scheme == 'https' and parsed.hostname and not parsed.username and not parsed.password and not parsed.fragment and all(32 < ord(c) < 127 and c != '\\' for c in value)
 
+def validate_feature_metadata(features, dependencies):
+    require(isinstance(features, dict) and len(features) <= 256, 'invalid feature table')
+    optional = {dep['alias'] for dep in dependencies if dep.get('optional')}
+    for name, items in features.items():
+        require(FEATURE.fullmatch(name), 'invalid feature name')
+        require(isinstance(items, list) and len(items) <= 256, 'invalid feature items')
+        for item in items:
+            require(isinstance(item, str), 'feature items must be strings')
+            if item.startswith('dep:'):
+                require(item[4:] in optional, f'unknown optional dependency in feature: {item}')
+            else:
+                require(item in features, f'unknown local feature reference: {item}')
+    for dep in dependencies:
+        names = dep.get('features', [])
+        require(isinstance(names, list) and len(names) <= 256, 'invalid dependency features')
+        require(all(isinstance(name, str) and FEATURE.fullmatch(name) for name in names),
+                'invalid requested feature name')
+        require(type(dep.get('optional', False)) is bool, 'optional must be a boolean')
+
+
+def string_array(values):
+    return '[' + ', '.join(map(quote, values)) + ']'
+
+
+def dependency_text(dep):
+    fields = [f'{key} = {quote(dep[key])}' for key in ('alias', 'package', 'version')]
+    if dep.get('optional'):
+        fields.append('optional = true')
+    if dep.get('features'):
+        fields.append(f'features = {string_array(sorted(set(dep["features"])))}')
+    return '{ ' + ', '.join(fields) + ' }'
+
+
 def record_text(record):
     text = '\n'.join(f'{key} = {quote(record[key])}' for key in ('version', 'url', 'sha256', 'entry'))
     text += '\nyanked = ' + str(record.get('yanked', False)).lower()
-    text += '\ndependencies = [' + ', '.join('{ ' + ', '.join(f'{key} = {quote(dep[key])}' for key in ('alias', 'package', 'version')) + ' }' for dep in record['dependencies']) + ']\n'
+    text += '\ndependencies = [' + ', '.join(map(dependency_text, record['dependencies'])) + ']\n'
+    if 'features' in record:
+        features = record['features']
+        text += 'features = { ' + ', '.join(
+            f'{quote(name)} = {string_array(sorted(set(items)))}' for name, items in sorted(features.items())
+        ) + ' }\n'
     return text
 
-def index_text(name, records):
-    return f'schema = 1\npackage = {quote(name)}\n' + ''.join('\n[[releases]]\n' + record_text(r) for r in sorted(records, key=lambda r: version_key(r['version']), reverse=True))
+def index_text(name, records, schema=1):
+    return f'schema = {schema}\npackage = {quote(name)}\n' + ''.join('\n[[releases]]\n' + record_text(r) for r in sorted(records, key=lambda r: version_key(r['version']), reverse=True))
+
+def release_dependencies(manifest):
+    dependencies = []
+    for alias, dep in manifest.get('dependencies', {}).items():
+        require(re.fullmatch(r'[a-z_][a-z0-9_]{0,63}', alias), 'invalid import alias')
+        require(isinstance(dep, dict) and set(dep) <= {'package', 'version', 'registry', 'optional', 'features'}, 'published packages require registry dependencies')
+        target = dep.get('package', alias)
+        require(NAME.fullmatch(target), 'invalid dependency package')
+        require(isinstance(dep.get('version'), str) and 0 < len(dep['version']) <= 256, 'missing dependency requirement')
+        record = {'alias': alias, 'package': target, 'version': dep['version']}
+        for field in ('optional', 'features'):
+            if field in dep:
+                record[field] = dep[field]
+        dependencies.append(record)
+    require(len(dependencies) <= 256, 'too many production dependencies')
+    validate_feature_metadata(manifest.get('features', {}), dependencies)
+    return dependencies
+
 
 def inspect_archive(path):
     require(path.stat().st_size <= 16 * CAP, 'archive exceeds 16 MiB')
@@ -82,15 +139,7 @@ def inspect_archive(path):
     require(package.get('kind') == 'lib' and safe_path(package['entry']), 'registry package must be a library with a relative entry')
     require(f'{label}/{package["entry"]}' in files, 'missing library entry')
     require(all(name.startswith(label + '/') for name in files), 'archive has another top-level directory')
-    dependencies = []
-    for alias, dep in manifest.get('dependencies', {}).items():
-        require(re.fullmatch(r'[a-z_][a-z0-9_]{0,63}', alias), 'invalid import alias')
-        require(isinstance(dep, dict) and set(dep) <= {'package', 'version', 'registry'}, 'published packages require registry dependencies')
-        target = dep.get('package', alias)
-        require(NAME.fullmatch(target), 'invalid dependency package')
-        require(isinstance(dep.get('version'), str) and 0 < len(dep['version']) <= 256, 'missing dependency requirement')
-        dependencies.append({'alias': alias, 'package': target, 'version': dep['version']})
-    return manifest, dependencies
+    return manifest, release_dependencies(manifest)
 
 def pack(project, output):
     manifest = tomllib.loads((project / 'Honk.toml').read_text())
@@ -98,6 +147,7 @@ def pack(project, output):
     require(NAME.fullmatch(package['name']), 'invalid package name')
     version_key(package['version'])
     label = f'{package["name"]}-{package["version"]}'
+    release_dependencies(manifest)
     tracked = subprocess.check_output(['git', '-C', str(project), 'ls-files', '-z']).split(b'\0')
     paths = sorted({name.decode() for name in tracked if name})
     require('Honk.toml' in paths and 'LICENSE' in paths, 'track Honk.toml and LICENSE before packaging')
@@ -120,19 +170,32 @@ def pack(project, output):
     inspect_archive(output)
     print(hashlib.sha256(output.read_bytes()).hexdigest(), output)
 
-def add(index, archive, url):
+def add(index, archive, url, schema=1):
     require(secure_url(url), 'archive URL must use HTTPS without credentials')
     manifest, dependencies = inspect_archive(archive)
     package = manifest['package']
     record = {'version': package['version'], 'url': url, 'sha256': hashlib.sha256(archive.read_bytes()).hexdigest(), 'entry': package['entry'], 'yanked': False, 'dependencies': dependencies}
     target = index / f'{package["name"]}.toml'
-    records = tomllib.loads(target.read_text())['releases'] if target.exists() else []
+    has_features = 'features' in manifest or any('optional' in dep or 'features' in dep for dep in dependencies)
+    require(schema == 2 or not has_features, 'feature metadata requires an experimental schema-2 index')
+    if 'features' in manifest:
+        record['features'] = manifest['features']
+    records = []
+    for path in index.glob('*.toml'):
+        if path.name == '_catalog.toml':
+            continue
+        existing = tomllib.loads(path.read_text())
+        require(existing['schema'] == schema, 'target index uses a different schema')
+        if path == target:
+            records = existing['releases']
     require(all(r['version'] != record['version'] for r in records), 'published version already exists; choose a new version')
     # The hosting index URL must be the same as every published dependency's registry.
     for dep in manifest.get('dependencies', {}).values():
         require(dep.get('registry', 'https://carabistouflette.github.io/goose-nest/index') == 'https://carabistouflette.github.io/goose-nest/index', 'this registry does not accept cross-registry dependencies')
     index.mkdir(parents=True, exist_ok=True)
-    target.write_text(index_text(package['name'], records + [record]))
+    content = index_text(package['name'], records + [record], schema)
+    require(len(content.encode()) <= CAP, 'index file exceeds 1 MiB')
+    target.write_text(content)
     catalog(index)
     print(target)
 
@@ -154,17 +217,19 @@ def catalog_content(index):
 def catalog(index):
     (index / '_catalog.toml').write_text(catalog_content(index))
 
-def validate(index, base=None):
+def validate(index, base=None, schema=1):
     for path in sorted(index.glob('*.toml')):
         if path.stem == '_catalog':
             continue
         doc = tomllib.loads(path.read_text())
-        require(path.stat().st_size <= CAP and set(doc) == {'schema', 'package', 'releases'} and doc['schema'] == 1, 'invalid index schema')
+        require(path.stat().st_size <= CAP and set(doc) == {'schema', 'package', 'releases'} and doc['schema'] == schema, 'invalid index schema')
         require(NAME.fullmatch(doc['package']) and path.stem == doc['package'], 'invalid index package name')
         require(isinstance(doc['releases'], list) and len(doc['releases']) <= 512, 'invalid release count')
         seen = set()
         for record in doc['releases']:
-            require(set(record) == {'version', 'url', 'sha256', 'entry', 'yanked', 'dependencies'}, 'unknown release field')
+            required = {'version', 'url', 'sha256', 'entry', 'yanked', 'dependencies'}
+            require(required <= set(record) <= (required | ({'features'} if schema == 2 else set())),
+                    'unknown or missing release field')
             version_key(record['version'])
             require(record['version'] not in seen, 'duplicate version')
             seen.add(record['version'])
@@ -172,11 +237,15 @@ def validate(index, base=None):
             require(type(record['yanked']) is bool and len(record['dependencies']) <= 256, 'invalid release fields')
             aliases = set()
             for dep in record['dependencies']:
-                require(set(dep) == {'alias', 'package', 'version'} and re.fullmatch('[a-z_][a-z0-9_]{0,63}', dep['alias']) and NAME.fullmatch(dep['package']) and isinstance(dep['version'], str) and 0 < len(dep['version']) <= 256, 'invalid dependency')
+                required = {'alias', 'package', 'version'}
+                allowed = required | ({'optional', 'features'} if schema == 2 else set())
+                require(required <= set(dep) <= allowed and re.fullmatch('[a-z_][a-z0-9_]{0,63}', dep['alias']) and NAME.fullmatch(dep['package']) and isinstance(dep['version'], str) and 0 < len(dep['version']) <= 256, 'invalid dependency')
                 require(dep['alias'] not in aliases, 'duplicate dependency alias')
                 aliases.add(dep['alias'])
+            validate_feature_metadata(record.get('features', {}), record['dependencies'])
         if base and (base / path.name).exists():
             old = tomllib.loads((base / path.name).read_text())
+            require(old['schema'] == schema, 'index schema cannot change in place')
             current = {r['version']: r for r in doc['releases']}
             for previous in old['releases']:
                 require(previous['version'] in current, 'published releases cannot be deleted')
@@ -212,12 +281,14 @@ def main():
     p = sub.add_parser('catalog'); p.add_argument('--index', type=Path, default=Path('index'))
     p = sub.add_parser('validate'); p.add_argument('--index', type=Path, default=Path('index')); p.add_argument('--base', type=Path)
     p = sub.add_parser('site'); p.add_argument('output', type=Path); p.add_argument('--index', type=Path, default=Path('index'))
+    for command in ('add', 'validate'):
+        sub.choices[command].add_argument('--schema', type=int, choices=(1, 2), default=1)
     args = parser.parse_args()
     try:
         if args.command == 'pack': pack(args.project.resolve(), args.output)
-        elif args.command == 'add': add(args.index, args.archive, args.url)
+        elif args.command == 'add': add(args.index, args.archive, args.url, args.schema)
         elif args.command == 'catalog': catalog(args.index)
-        elif args.command == 'validate': validate(args.index, args.base)
+        elif args.command == 'validate': validate(args.index, args.base, args.schema)
         elif args.command == 'site': validate(args.index); catalog(args.index); site(args.index, args.output)
     except (ValueError, KeyError, OSError, tarfile.TarError, tomllib.TOMLDecodeError) as error:
         parser.exit(1, f'nest registry: {error}\n')

@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tarfile
 import tempfile
+import tomllib
 import unittest
 
 spec = importlib.util.spec_from_file_location('registry_tools', Path(__file__).resolve().parents[1] / 'tools/registry.py')
@@ -48,6 +49,70 @@ class Publishing(unittest.TestCase):
             old.write_text(old.read_text().replace('https://example.com/', 'https://other.example/'))
             with self.assertRaises(ValueError):
                 tools.validate(index, base)
+    def test_feature_metadata_roundtrips_and_preserves_legacy_index(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / 'feature.tar.gz'
+            manifest = b'''[package]
+name = "example"
+version = "1.0.0"
+kind = "lib"
+entry = "lib.goose"
+
+[dependencies]
+codec = { package = "codec", version = "^1.0.0", optional = true, features = ["z", "a"] }
+
+[features]
+default = ["export"]
+export = ["dep:codec"]
+'''
+            with tarfile.open(archive, 'w:gz') as tar:
+                for path, data in [('Honk.toml', manifest), ('lib.goose', b'namespace example;')]:
+                    member = tarfile.TarInfo('example-1.0.0/' + path)
+                    member.size = len(data)
+                    tar.addfile(member, io.BytesIO(data))
+            url = 'https://example.com/feature.tar.gz'
+            legacy = root / 'legacy'
+            with self.assertRaisesRegex(ValueError, 'schema-2'):
+                tools.add(legacy, archive, url)
+            self.assertFalse(legacy.exists())
+
+            index = root / 'index-v2'
+            tools.add(index, archive, url, schema=2)
+            tools.validate(index, schema=2)
+            entry = index / 'example.toml'
+            original = entry.read_bytes()
+            data = tomllib.loads(original.decode())
+            record = data['releases'][0]
+            self.assertEqual(data['schema'], 2)
+            self.assertEqual(record['features'], {'default': ['export'], 'export': ['dep:codec']})
+            self.assertEqual(record['dependencies'][0]['features'], ['a', 'z'])
+            self.assertIs(record['dependencies'][0]['optional'], True)
+            with self.assertRaisesRegex(ValueError, 'invalid index schema'):
+                tools.validate(index)
+
+            base = root / 'base'
+            base.mkdir()
+            (base / entry.name).write_bytes(original)
+            entry.write_bytes(original.replace(b'["export"]', b'[]'))
+            with self.assertRaisesRegex(ValueError, 'immutable'):
+                tools.validate(index, base, schema=2)
+            entry.write_bytes(original.replace(b'dep:codec', b'dep:missing'))
+            with self.assertRaisesRegex(ValueError, 'unknown optional dependency'):
+                tools.validate(index, schema=2)
+
+    def test_feature_metadata_rejects_invalid_references_and_types(self):
+        dep = dict(alias='codec', package='codec', version='^1.0.0', optional=True)
+        for features, dependencies in [
+            ({'default': ['missing']}, [dep]),
+            ({'default': ['dep:codec']}, [dict(dep, optional=False)]),
+            ({'default': ['dep:codec']}, [dict(dep, optional=1)]),
+            ({'default': [42]}, [dep]),
+            ({}, [dict(dep, features=['invalid/feature'])]),
+        ]:
+            with self.subTest(features=features, dependencies=dependencies), self.assertRaises(ValueError):
+                tools.validate_feature_metadata(features, dependencies)
+
     def test_source_paths_and_transport_policy(self):
         for path in ('../x', '/x', 'x//y', 'x/./y', 'x\\y'):
             self.assertFalse(tools.safe_path(path))
