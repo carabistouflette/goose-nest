@@ -10,7 +10,47 @@ fn record(package: u8[:], version: u8[:], dependencies: const nest::Dependency[:
 fn selected_version(r: const nest::Resolver&, package: u8[:]) -> u8[>..] {
     for i in r.selected { let value = nest::record_at(r, i); if value.package == package { return str(value.version); } } return [];
 }
+fn test_feature_metadata() {
+    let registry = "https://example.com/index";
+    let release = """
+    version = "1.0.0"
+    url = "https://example.com/a.tar.gz"
+    sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    entry = "lib.goose"
+    dependencies = [{ alias = "codec", package = "goose-codec", version = "^1.0.0", optional = true, features = ["pretty"] }]
+    features = { default = ["text"], text = ["dep:codec"] }
+    """;
+    let index = str("schema = 2\npackage = 'app'\n[[releases]]\n", release);
+    var records: nest::Record[>..] = [];
+    assert(nest::parse_index(index, registry, "app", records).len > 0);
+    assert(nest::parse_index(str("schema = 1\npackage = 'app'\n[[releases]]\n", release), registry, "app", records, true).len > 0);
+    assert(nest::parse_index(index, registry, "app", records, true).len == 0);
+    assert(records.len == 1);
+    for rec in records {
+        assert(nest::has_feature_metadata(rec));
+        assert(rec.features.len == 2);
+        for dep in rec.dependencies {
+            assert(dep.optional && dep.features.len == 1);
+            for name in dep.features { assert(name == "pretty"); }
+        }
+        let text = nest::record_text(rec);
+        let decoded, error = nest::locked_record(text, registry, "app", true);
+        assert(error.len == 0 && nest::record_text(decoded) == text);
+        let ignored, legacy_error = nest::locked_record(text, registry, "app");
+        assert(legacy_error.len > 0);
+        var resolver = nest::Resolver { locked: true, .. };
+        resolver.locked_records.push(copy(decoded));
+        let roots = [nest::Request { package: str("app"), requirement: str("^1.0.0"), registry: str(registry) }];
+        assert(!nest::resolve(resolver, roots));
+    }
+    let bad = str("version = '1.0.0'\nurl = 'https://example.com/a.tar.gz'\n",
+                  "sha256 = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'\n",
+                  "entry = 'lib.goose'\nfeatures = { default = ['dep:missing'] }\n");
+    let ignored, error = nest::locked_record(bad, registry, "app", true);
+    assert(error.len > 0);
+}
 fn main() {
+    test_feature_metadata();
     assert(nest::package_name("goose-json")); assert(!nest::package_name("../json")); assert(!nest::package_name("goose_json"));
     assert(!nest::registry_url("https://example.com/index/")); assert(!nest::url("http://example.com"));
     assert(nest::matches("^1.0.0", "1.9.0")); assert(!nest::matches("^1.0.0", "2.0.0")); assert(!nest::matches("^1.0.0", "1.1.0-alpha.1"));
