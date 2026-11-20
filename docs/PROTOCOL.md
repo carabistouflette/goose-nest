@@ -100,9 +100,12 @@ not cause registry discovery; use Honk to generate the complete root mapping.
 ## Experimental feature metadata
 
 The offline authoring tools can prepare a separate schema-2 index. This is the
-authoring contract for feature-aware releases. Nest and Honk's registry
-resolvers currently read schema 1. Keep schema-2 entries in a staging index
-until those consumers support the new format. The default validator and site
+authoring contract for feature-aware releases. Nest's metadata API can opt
+into reading both schemas with `parse_index(..., true)` or `catalog(..., true)`.
+`locked_record(..., true)` restores the feature fields emitted by `record_text`.
+The existing resolver still uses schema 1 and rejects feature-bearing lock
+records. Keep schema-2 entries in a staging index until the consumer resolver
+supports feature activation. The default validator and site
 generation continue to require schema 1.
 
 ```sh
