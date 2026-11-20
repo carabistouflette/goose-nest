@@ -47,6 +47,7 @@ def secure_url(value):
 
 def validate_feature_metadata(features, dependencies):
     require(isinstance(features, dict) and len(features) <= 256, 'invalid feature table')
+    aliases = {dep['alias'] for dep in dependencies}
     optional = {dep['alias'] for dep in dependencies if dep.get('optional')}
     for name, items in features.items():
         require(FEATURE.fullmatch(name), 'invalid feature name')
@@ -55,6 +56,11 @@ def validate_feature_metadata(features, dependencies):
             require(isinstance(item, str), 'feature items must be strings')
             if item.startswith('dep:'):
                 require(item[4:] in optional, f'unknown optional dependency in feature: {item}')
+            elif '/' in item:
+                alias, target = item.split('/', 1)
+                allowed = optional if alias.endswith('?') else aliases
+                require(alias.removesuffix('?') in allowed and FEATURE.fullmatch(target),
+                        f'invalid dependency feature reference: {item}')
             else:
                 require(item in features, f'unknown local feature reference: {item}')
     for dep in dependencies:

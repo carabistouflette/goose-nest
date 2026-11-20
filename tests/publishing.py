@@ -64,7 +64,7 @@ codec = { package = "codec", version = "^1.0.0", optional = true, default-featur
 
 [features]
 default = ["export"]
-export = ["dep:codec"]
+export = ["dep:codec", "codec/pretty", "codec?/other"]
 '''
             with tarfile.open(archive, 'w:gz') as tar:
                 for path, data in [('Honk.toml', manifest), ('lib.goose', b'namespace example;')]:
@@ -85,7 +85,7 @@ export = ["dep:codec"]
             data = tomllib.loads(original.decode())
             record = data['releases'][0]
             self.assertEqual(data['schema'], 2)
-            self.assertEqual(record['features'], {'default': ['export'], 'export': ['dep:codec']})
+            self.assertEqual(record['features'], {'default': ['export'], 'export': ['codec/pretty', 'codec?/other', 'dep:codec']})
             self.assertEqual(record['dependencies'][0]['features'], ['a', 'z'])
             self.assertIs(record['dependencies'][0]['optional'], True)
             self.assertIs(record['dependencies'][0]['default-features'], False)
@@ -111,6 +111,9 @@ export = ["dep:codec"]
             ({'default': [42]}, [dep]),
             ({}, [dict(dep, features=['invalid/feature'])]),
             ({}, [dict(dep, **{'default-features': 0})]),
+            ({'default': ['codec?/pretty']}, [dict(dep, optional=False)]),
+            ({'default': ['typo/pretty']}, [dep]),
+            ({'default': ['codec/invalid/name']}, [dep]),
         ]:
             with self.subTest(features=features, dependencies=dependencies), self.assertRaises(ValueError):
                 tools.validate_feature_metadata(features, dependencies)
