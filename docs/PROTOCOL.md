@@ -116,15 +116,15 @@ python3 tools/registry.py validate --schema 2 --index .build/index-v2
 
 A package file declares `schema = 2`. It retains the schema-1 release
 fields and can add a `features` table to each release. Each dependency
-can include `optional = true` and a `features` array of target feature
-names. Omitted fields mean a required dependency and no named feature
-requests. The search catalog keeps its existing schema because it contains
+can include `optional = true`, `default-features = false`, and a `features`
+array of target feature names. By default, the dependency is required and
+requests the target's default group when one exists. The search catalog keeps its existing schema because it contains
 names and versions only.
 
 ```toml
 features = { default = ["text"], text = ["dep:codec"] }
 dependencies = [
-  { alias = "codec", package = "goose-codec", version = "^1.0.0", optional = true, features = ["pretty"] }
+  { alias = "codec", package = "goose-codec", version = "^1.0.0", optional = true, default-features = false, features = ["pretty"] }
 ]
 ```
 

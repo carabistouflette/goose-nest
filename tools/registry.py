@@ -63,6 +63,7 @@ def validate_feature_metadata(features, dependencies):
         require(all(isinstance(name, str) and FEATURE.fullmatch(name) for name in names),
                 'invalid requested feature name')
         require(type(dep.get('optional', False)) is bool, 'optional must be a boolean')
+        require(type(dep.get('default-features', True)) is bool, 'default-features must be a boolean')
 
 
 def string_array(values):
@@ -73,6 +74,8 @@ def dependency_text(dep):
     fields = [f'{key} = {quote(dep[key])}' for key in ('alias', 'package', 'version')]
     if dep.get('optional'):
         fields.append('optional = true')
+    if not dep.get('default-features', True):
+        fields.append('default-features = false')
     if dep.get('features'):
         fields.append(f'features = {string_array(sorted(set(dep["features"])))}')
     return '{ ' + ', '.join(fields) + ' }'
@@ -96,12 +99,12 @@ def release_dependencies(manifest):
     dependencies = []
     for alias, dep in manifest.get('dependencies', {}).items():
         require(re.fullmatch(r'[a-z_][a-z0-9_]{0,63}', alias), 'invalid import alias')
-        require(isinstance(dep, dict) and set(dep) <= {'package', 'version', 'registry', 'optional', 'features'}, 'published packages require registry dependencies')
+        require(isinstance(dep, dict) and set(dep) <= {'package', 'version', 'registry', 'optional', 'features', 'default-features'}, 'published packages require registry dependencies')
         target = dep.get('package', alias)
         require(NAME.fullmatch(target), 'invalid dependency package')
         require(isinstance(dep.get('version'), str) and 0 < len(dep['version']) <= 256, 'missing dependency requirement')
         record = {'alias': alias, 'package': target, 'version': dep['version']}
-        for field in ('optional', 'features'):
+        for field in ('optional', 'features', 'default-features'):
             if field in dep:
                 record[field] = dep[field]
         dependencies.append(record)
@@ -176,7 +179,7 @@ def add(index, archive, url, schema=1):
     package = manifest['package']
     record = {'version': package['version'], 'url': url, 'sha256': hashlib.sha256(archive.read_bytes()).hexdigest(), 'entry': package['entry'], 'yanked': False, 'dependencies': dependencies}
     target = index / f'{package["name"]}.toml'
-    has_features = 'features' in manifest or any('optional' in dep or 'features' in dep for dep in dependencies)
+    has_features = 'features' in manifest or any('optional' in dep or 'features' in dep or 'default-features' in dep for dep in dependencies)
     require(schema == 2 or not has_features, 'feature metadata requires an experimental schema-2 index')
     if 'features' in manifest:
         record['features'] = manifest['features']
@@ -238,7 +241,7 @@ def validate(index, base=None, schema=1):
             aliases = set()
             for dep in record['dependencies']:
                 required = {'alias', 'package', 'version'}
-                allowed = required | ({'optional', 'features'} if schema == 2 else set())
+                allowed = required | ({'optional', 'features', 'default-features'} if schema == 2 else set())
                 require(required <= set(dep) <= allowed and re.fullmatch('[a-z_][a-z0-9_]{0,63}', dep['alias']) and NAME.fullmatch(dep['package']) and isinstance(dep['version'], str) and 0 < len(dep['version']) <= 256, 'invalid dependency')
                 require(dep['alias'] not in aliases, 'duplicate dependency alias')
                 aliases.add(dep['alias'])

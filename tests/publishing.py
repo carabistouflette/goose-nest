@@ -60,7 +60,7 @@ kind = "lib"
 entry = "lib.goose"
 
 [dependencies]
-codec = { package = "codec", version = "^1.0.0", optional = true, features = ["z", "a"] }
+codec = { package = "codec", version = "^1.0.0", optional = true, default-features = false, features = ["z", "a"] }
 
 [features]
 default = ["export"]
@@ -88,6 +88,7 @@ export = ["dep:codec"]
             self.assertEqual(record['features'], {'default': ['export'], 'export': ['dep:codec']})
             self.assertEqual(record['dependencies'][0]['features'], ['a', 'z'])
             self.assertIs(record['dependencies'][0]['optional'], True)
+            self.assertIs(record['dependencies'][0]['default-features'], False)
             with self.assertRaisesRegex(ValueError, 'invalid index schema'):
                 tools.validate(index)
 
@@ -109,6 +110,7 @@ export = ["dep:codec"]
             ({'default': ['dep:codec']}, [dict(dep, optional=1)]),
             ({'default': [42]}, [dep]),
             ({}, [dict(dep, features=['invalid/feature'])]),
+            ({}, [dict(dep, **{'default-features': 0})]),
         ]:
             with self.subTest(features=features, dependencies=dependencies), self.assertRaises(ValueError):
                 tools.validate_feature_metadata(features, dependencies)
