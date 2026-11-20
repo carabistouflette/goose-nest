@@ -132,7 +132,10 @@ The authoring tool derives this metadata from the archived `Honk.toml`.
 Group names start with a lowercase ASCII letter and may contain lowercase
 letters, digits, hyphens, and underscores, up to 64 bytes. A group can
 name a local group or activate a declared optional dependency with
-`dep:<alias>`. Limits match Honk's 256 groups, items per group, dependency
+`dep:<alias>`. An item `<alias>/<feature>` requests a feature on the
+dependency and activates the edge if optional. An item
+`<alias>?/<feature>` requests the feature only when that optional edge
+is active. Limits match Honk's 256 groups, items per group, dependency
 requests per edge, and production dependencies. Cross-package requests
 are checked for valid names at authoring time. The resolver must check
 whether the selected target release defines those names.

@@ -18,7 +18,7 @@ fn test_feature_metadata() {
     sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     entry = "lib.goose"
     dependencies = [{ alias = "codec", package = "goose-codec", version = "^1.0.0", optional = true, default-features = false, features = ["pretty"] }]
-    features = { default = ["text"], text = ["dep:codec"] }
+    features = { default = ["text"], text = ["codec?/pretty", "codec/pretty", "dep:codec"] }
     """;
     let index = str("schema = 2\npackage = 'app'\n[[releases]]\n", release);
     var records: nest::Record[>..] = [];
