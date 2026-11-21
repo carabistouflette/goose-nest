@@ -59,8 +59,11 @@ version = "1.0.0"
 kind = "lib"
 entry = "lib.goose"
 
-[dependencies]
+[target.linux.dependencies]
 codec = { package = "codec", version = "^1.0.0", optional = true, default-features = false, features = ["z", "a"] }
+
+[target.windows.dependencies]
+codec = { package = "win-codec", version = "^1.0.0", optional = true }
 
 [features]
 default = ["export"]
@@ -86,6 +89,8 @@ export = ["dep:codec", "codec/pretty", "codec?/other"]
             record = data['releases'][0]
             self.assertEqual(data['schema'], 2)
             self.assertEqual(record['features'], {'default': ['export'], 'export': ['codec/pretty', 'codec?/other', 'dep:codec']})
+            self.assertEqual([(d['target-os'], d['package']) for d in record['dependencies']],
+                             [('linux', 'codec'), ('windows', 'win-codec')])
             self.assertEqual(record['dependencies'][0]['features'], ['a', 'z'])
             self.assertIs(record['dependencies'][0]['optional'], True)
             self.assertIs(record['dependencies'][0]['default-features'], False)
@@ -98,6 +103,9 @@ export = ["dep:codec", "codec/pretty", "codec?/other"]
             entry.write_bytes(original.replace(b'["export"]', b'[]'))
             with self.assertRaisesRegex(ValueError, 'immutable'):
                 tools.validate(index, base, schema=2)
+            entry.write_bytes(original.replace(b'target-os = "windows"', b'target-os = "linux"'))
+            with self.assertRaisesRegex(ValueError, 'overlapping dependency alias'):
+                tools.validate(index, schema=2)
             entry.write_bytes(original.replace(b'dep:codec', b'dep:missing'))
             with self.assertRaisesRegex(ValueError, 'unknown optional dependency'):
                 tools.validate(index, schema=2)

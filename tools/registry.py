@@ -45,6 +45,21 @@ def secure_url(value):
     parsed = urlsplit(value)
     return parsed.scheme == 'https' and parsed.hostname and not parsed.username and not parsed.password and not parsed.fragment and all(32 < ord(c) < 127 and c != '\\' for c in value)
 
+TARGET_OSES = {'linux', 'macos', 'windows', 'freebsd'}
+
+
+def validate_dependency_targets(dependencies):
+    targets_by_alias = {}
+    for dep in dependencies:
+        target = dep.get('target-os')
+        require('target-os' not in dep or (isinstance(target, str) and target in TARGET_OSES),
+                'invalid dependency target-os')
+        targets = targets_by_alias.setdefault(dep['alias'], set())
+        require(not targets or (target is not None and None not in targets and target not in targets),
+                'overlapping dependency alias')
+        targets.add(target)
+
+
 def validate_feature_metadata(features, dependencies):
     require(isinstance(features, dict) and len(features) <= 256, 'invalid feature table')
     aliases = {dep['alias'] for dep in dependencies}
@@ -78,6 +93,8 @@ def string_array(values):
 
 def dependency_text(dep):
     fields = [f'{key} = {quote(dep[key])}' for key in ('alias', 'package', 'version')]
+    if 'target-os' in dep:
+        fields.append(f'target-os = {quote(dep["target-os"])}')
     if dep.get('optional'):
         fields.append('optional = true')
     if not dep.get('default-features', True):
@@ -101,20 +118,35 @@ def record_text(record):
 def index_text(name, records, schema=1):
     return f'schema = {schema}\npackage = {quote(name)}\n' + ''.join('\n[[releases]]\n' + record_text(r) for r in sorted(records, key=lambda r: version_key(r['version']), reverse=True))
 
+def production_dependencies(manifest):
+    yield from ((alias, dep, None) for alias, dep in manifest.get('dependencies', {}).items())
+    targets = manifest.get('target', {})
+    require(isinstance(targets, dict), 'target must be a table of operating systems')
+    for target_os, table in sorted(targets.items()):
+        require(target_os in TARGET_OSES and isinstance(table, dict)
+                and set(table) <= {'dependencies', 'dev-dependencies'}, 'invalid target dependency table')
+        dependencies = table.get('dependencies', {})
+        require(isinstance(dependencies, dict), 'target dependencies must be a table')
+        yield from ((alias, dep, target_os) for alias, dep in dependencies.items())
+
+
 def release_dependencies(manifest):
     dependencies = []
-    for alias, dep in manifest.get('dependencies', {}).items():
+    for alias, dep, target_os in production_dependencies(manifest):
         require(re.fullmatch(r'[a-z_][a-z0-9_]{0,63}', alias), 'invalid import alias')
         require(isinstance(dep, dict) and set(dep) <= {'package', 'version', 'registry', 'optional', 'features', 'default-features'}, 'published packages require registry dependencies')
         target = dep.get('package', alias)
         require(NAME.fullmatch(target), 'invalid dependency package')
         require(isinstance(dep.get('version'), str) and 0 < len(dep['version']) <= 256, 'missing dependency requirement')
         record = {'alias': alias, 'package': target, 'version': dep['version']}
+        if target_os is not None:
+            record['target-os'] = target_os
         for field in ('optional', 'features', 'default-features'):
             if field in dep:
                 record[field] = dep[field]
         dependencies.append(record)
     require(len(dependencies) <= 256, 'too many production dependencies')
+    validate_dependency_targets(dependencies)
     validate_feature_metadata(manifest.get('features', {}), dependencies)
     return dependencies
 
@@ -185,8 +217,9 @@ def add(index, archive, url, schema=1):
     package = manifest['package']
     record = {'version': package['version'], 'url': url, 'sha256': hashlib.sha256(archive.read_bytes()).hexdigest(), 'entry': package['entry'], 'yanked': False, 'dependencies': dependencies}
     target = index / f'{package["name"]}.toml'
-    has_features = 'features' in manifest or any('optional' in dep or 'features' in dep or 'default-features' in dep for dep in dependencies)
-    require(schema == 2 or not has_features, 'feature metadata requires an experimental schema-2 index')
+    has_metadata = {'features', 'target'}.intersection(manifest) or any(
+        {'optional', 'features', 'default-features'}.intersection(dep) for dep in dependencies)
+    require(schema == 2 or not has_metadata, 'feature and target metadata requires an experimental schema-2 index')
     if 'features' in manifest:
         record['features'] = manifest['features']
     records = []
@@ -199,7 +232,7 @@ def add(index, archive, url, schema=1):
             records = existing['releases']
     require(all(r['version'] != record['version'] for r in records), 'published version already exists; choose a new version')
     # The hosting index URL must be the same as every published dependency's registry.
-    for dep in manifest.get('dependencies', {}).values():
+    for _, dep, _ in production_dependencies(manifest):
         require(dep.get('registry', 'https://carabistouflette.github.io/goose-nest/index') == 'https://carabistouflette.github.io/goose-nest/index', 'this registry does not accept cross-registry dependencies')
     index.mkdir(parents=True, exist_ok=True)
     content = index_text(package['name'], records + [record], schema)
@@ -244,13 +277,11 @@ def validate(index, base=None, schema=1):
             seen.add(record['version'])
             require(secure_url(record['url']) and re.fullmatch('[0-9a-f]{64}', record['sha256']) and safe_path(record['entry']), 'invalid release source identity')
             require(type(record['yanked']) is bool and len(record['dependencies']) <= 256, 'invalid release fields')
-            aliases = set()
             for dep in record['dependencies']:
                 required = {'alias', 'package', 'version'}
-                allowed = required | ({'optional', 'features', 'default-features'} if schema == 2 else set())
+                allowed = required | ({'optional', 'features', 'default-features', 'target-os'} if schema == 2 else set())
                 require(required <= set(dep) <= allowed and re.fullmatch('[a-z_][a-z0-9_]{0,63}', dep['alias']) and NAME.fullmatch(dep['package']) and isinstance(dep['version'], str) and 0 < len(dep['version']) <= 256, 'invalid dependency')
-                require(dep['alias'] not in aliases, 'duplicate dependency alias')
-                aliases.add(dep['alias'])
+            validate_dependency_targets(record['dependencies'])
             validate_feature_metadata(record.get('features', {}), record['dependencies'])
         if base and (base / path.name).exists():
             old = tomllib.loads((base / path.name).read_text())
