@@ -46,6 +46,7 @@ def secure_url(value):
     return parsed.scheme == 'https' and parsed.hostname and not parsed.username and not parsed.password and not parsed.fragment and all(32 < ord(c) < 127 and c != '\\' for c in value)
 
 TARGET_OSES = {'linux', 'macos', 'windows', 'freebsd'}
+TARGET_ARCHES = {'x86_64', 'aarch64'}
 
 
 def validate_dependency_targets(dependencies):
@@ -54,10 +55,15 @@ def validate_dependency_targets(dependencies):
         target = dep.get('target-os')
         require('target-os' not in dep or (isinstance(target, str) and target in TARGET_OSES),
                 'invalid dependency target-os')
-        targets = targets_by_alias.setdefault(dep['alias'], set())
-        require(not targets or (target is not None and None not in targets and target not in targets),
-                'overlapping dependency alias')
-        targets.add(target)
+        arch = dep.get('target-arch')
+        require('target-arch' not in dep or (target is not None and isinstance(arch, str) and arch in TARGET_ARCHES),
+                'invalid dependency target-arch')
+        targets = targets_by_alias.setdefault(dep['alias'], [])
+        for other_os, other_arch in targets:
+            require((target is not None and other_os is not None and target != other_os)
+                    or (arch is not None and other_arch is not None and arch != other_arch),
+                    'overlapping dependency alias')
+        targets.append((target, arch))
 
 
 def validate_feature_metadata(features, dependencies):
@@ -95,6 +101,8 @@ def dependency_text(dep):
     fields = [f'{key} = {quote(dep[key])}' for key in ('alias', 'package', 'version')]
     if 'target-os' in dep:
         fields.append(f'target-os = {quote(dep["target-os"])}')
+    if 'target-arch' in dep:
+        fields.append(f'target-arch = {quote(dep["target-arch"])}')
     if dep.get('optional'):
         fields.append('optional = true')
     if not dep.get('default-features', True):
@@ -123,7 +131,8 @@ def production_dependencies(manifest):
     targets = manifest.get('target', {})
     require(isinstance(targets, dict), 'target must be a table of operating systems')
     for target_os, table in sorted(targets.items()):
-        require(target_os in TARGET_OSES and isinstance(table, dict)
+        os, separator, arch = target_os.partition('-')
+        require(os in TARGET_OSES and (not separator or arch in TARGET_ARCHES) and isinstance(table, dict)
                 and set(table) <= {'dependencies', 'dev-dependencies'}, 'invalid target dependency table')
         dependencies = table.get('dependencies', {})
         require(isinstance(dependencies, dict), 'target dependencies must be a table')
@@ -140,7 +149,10 @@ def release_dependencies(manifest):
         require(isinstance(dep.get('version'), str) and 0 < len(dep['version']) <= 256, 'missing dependency requirement')
         record = {'alias': alias, 'package': target, 'version': dep['version']}
         if target_os is not None:
-            record['target-os'] = target_os
+            os, separator, arch = target_os.partition('-')
+            record['target-os'] = os
+            if separator:
+                record['target-arch'] = arch
         for field in ('optional', 'features', 'default-features'):
             if field in dep:
                 record[field] = dep[field]
@@ -279,7 +291,7 @@ def validate(index, base=None, schema=1):
             require(type(record['yanked']) is bool and len(record['dependencies']) <= 256, 'invalid release fields')
             for dep in record['dependencies']:
                 required = {'alias', 'package', 'version'}
-                allowed = required | ({'optional', 'features', 'default-features', 'target-os'} if schema == 2 else set())
+                allowed = required | ({'optional', 'features', 'default-features', 'target-os', 'target-arch'} if schema == 2 else set())
                 require(required <= set(dep) <= allowed and re.fullmatch('[a-z_][a-z0-9_]{0,63}', dep['alias']) and NAME.fullmatch(dep['package']) and isinstance(dep['version'], str) and 0 < len(dep['version']) <= 256, 'invalid dependency')
             validate_dependency_targets(record['dependencies'])
             validate_feature_metadata(record.get('features', {}), record['dependencies'])
