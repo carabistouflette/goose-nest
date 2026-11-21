@@ -128,6 +128,14 @@ dependencies = [
 ]
 ```
 
+A schema-2 dependency can also include `target-os` to select Linux, macOS,
+Windows, or FreeBSD (`linux`, `macos`, `windows`, `freebsd`). The publisher
+derives this field from `[target.<os>.dependencies]` in the archive.
+An omitted selector applies to every OS. Variants can share an alias
+on disjoint OSes. A matching variant is selected before optional edges
+and forwarded features are processed. Published development dependencies
+are local to the author's tests and are excluded from the index.
+
 The authoring tool derives this metadata from the archived `Honk.toml`.
 Group names start with a lowercase ASCII letter and may contain lowercase
 letters, digits, hyphens, and underscores, up to 64 bytes. A group can

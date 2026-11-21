@@ -17,7 +17,7 @@ fn test_feature_metadata() {
     url = "https://example.com/a.tar.gz"
     sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     entry = "lib.goose"
-    dependencies = [{ alias = "codec", package = "goose-codec", version = "^1.0.0", optional = true, default-features = false, features = ["pretty"] }]
+    dependencies = [{ alias = "codec", package = "goose-codec", version = "^1.0.0", optional = true, default-features = false, features = ["pretty"], target-os = "linux" }]
     features = { default = ["text"], text = ["codec?/pretty", "codec/pretty", "dep:codec"] }
     """;
     let index = str("schema = 2\npackage = 'app'\n[[releases]]\n", release);
@@ -31,6 +31,7 @@ fn test_feature_metadata() {
         assert(rec.features.len == 2);
         for dep in rec.dependencies {
             assert(dep.optional && !dep.default_features && dep.features.len == 1);
+            assert(nest::active_on(dep, "linux") && !nest::active_on(dep, "windows"));
             for name in dep.features { assert(name == "pretty"); }
         }
         let text = nest::record_text(rec);
