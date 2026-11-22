@@ -48,8 +48,10 @@ Native code compilation only happens when a user subsequently builds the package
 
 The per-package index cache uses SHA-256 of the full index URL as its key.
 Unlocked online resolution revalidates each needed package once using ETag.
-A CURL easy handle retains the connection pool between requests. Index content
-and ETag are replaced atomically under a private-cache flock. Missing/offline
+A client can also fetch up to four known indexes in parallel and consume their
+bodies or diagnostics in resolver order. Both paths reuse their connection pools
+and apply the same per-response byte limit and conditional request rules. Index
+content and ETag are replaced atomically under a private-cache flock. Missing/offline
 indexes fail without network. No time-based freshness heuristic is used.
 
 Verified archives and extracted trees use the archive SHA-256 as their cache
