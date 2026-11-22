@@ -61,6 +61,14 @@ remove the affected digest directory and `.ready` file to repair from the blob.
 A locally cached valid blob may be re-extracted offline. Cache writes are atomic
 but no power-loss durability guarantee is made for directory renames.
 
+Clients can prefetch the selected archives online after resolution. Prefetch
+uses the same private package-cache lock and HTTP settings as materialization.
+It downloads up to four missing blobs at a time, with the same 16 MiB limit
+per transfer. It writes each blob atomically after verifying its archive
+digest. Materialization still checks the digest and extracts the archive or
+checks the existing tree seal. A failed prefetch may leave verified blobs in
+the cache for a later retry.
+
 The cache is trusted local state, owned by the current user and not writable by
 other users; symlink cache paths are rejected. Same-user hostile concurrent
 writers, coordinated replacement of both sources and seals, or rollback of the
